@@ -6,13 +6,30 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F5506F772EF84A5300CAFC5B /* BLEKit in Frameworks */ = {isa = PBXBuildFile; productRef = F5506F762EF84A5300CAFC5B /* BLEKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		F539E7F22EF5175400E48C8F /* Swift6Extensions.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swift6Extensions.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F5506F832EF85A1C00CAFC5B /* Exceptions for "Swift6Extensions" folder in "Swift6Extensions" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F539E7F12EF5175400E48C8F /* Swift6Extensions */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F539E7F42EF5175400E48C8F /* Swift6Extensions */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F5506F832EF85A1C00CAFC5B /* Exceptions for "Swift6Extensions" folder in "Swift6Extensions" target */,
+			);
 			path = Swift6Extensions;
 			sourceTree = "<group>";
 		};
@@ -23,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F5506F772EF84A5300CAFC5B /* BLEKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +83,7 @@
 			);
 			name = Swift6Extensions;
 			packageProductDependencies = (
+				F5506F762EF84A5300CAFC5B /* BLEKit */,
 			);
 			productName = Swift6Extensions;
 			productReference = F539E7F22EF5175400E48C8F /* Swift6Extensions.app */;
@@ -94,6 +113,9 @@
 			);
 			mainGroup = F539E7E92EF5175400E48C8F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F5506F752EF84A5300CAFC5B /* XCLocalSwiftPackageReference "../BLEKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F539E7F32EF5175400E48C8F /* Products */;
 			projectDirPath = "";
@@ -256,6 +278,8 @@
 				DEVELOPMENT_TEAM = WYUSR3RW56;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Swift6Extensions/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App 需要使用蓝牙连接尿酸检测仪以获取测量数据";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -289,6 +313,8 @@
 				DEVELOPMENT_TEAM = WYUSR3RW56;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Swift6Extensions/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App 需要使用蓝牙连接尿酸检测仪以获取测量数据";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -334,6 +360,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F5506F752EF84A5300CAFC5B /* XCLocalSwiftPackageReference "../BLEKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../BLEKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F5506F762EF84A5300CAFC5B /* BLEKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BLEKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F539E7EA2EF5175400E48C8F /* Project object */;
 }
