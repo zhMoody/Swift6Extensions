@@ -3,15 +3,76 @@ import Combine
 import CoreBluetooth
 import BLEKit
 
+struct HistoryItem: Identifiable {
+	let id = UUID()
+	let timeString: String // 预先格式化好时间，避免滚动时重复计算
+	let value: Int
+	let status: String // 模拟状态：正常/偏高/偏低
+}
+
+// 每一天的数据组 (Day Group)
+struct HistoryDay: Identifiable {
+	let id = UUID()
+	let dateString: String // 显示如 "2025-12-21"
+	var items: [HistoryItem]
+	var isExpanded: Bool = false // 控制折叠状态
+}
+
 @MainActor
 class DeviceManager: ObservableObject {
 	@Published var displayState: DeviceDisplayState = .disconnected
+
+	@Published var historyData: [HistoryDay] = []
+	@Published var isLoading = true
 
 	private(set) var connectedPeripheral: CBPeripheral?
 	private var cancellables = Set<AnyCancellable>()
 
 	init() {
 		setupBluetoothObservers()
+	}
+	// Mock
+	func generateData() async {
+		guard historyData.isEmpty else { return }
+		let generatedDays = await Task.detached(priority: .userInitiated) { () -> [HistoryDay] in
+			var days: [HistoryDay] = []
+			let calendar = Calendar.current
+			let now = Date()
+			let formatter = DateFormatter()
+			formatter.dateFormat = "yyyy-MM-dd"
+
+			let timeFormatter = DateFormatter()
+			timeFormatter.dateFormat = "HH:mm"
+
+			for dayOffset in 0..<15 {
+				guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
+
+				var dailyItems: [HistoryItem] = []
+				for i in 0..<720 {
+					let totalMinutes = 24 * 60 - (i * 2)
+					let hours = totalMinutes / 60
+					let minutes = totalMinutes % 60
+					let timeStr = String(format: "%02d:%02d", hours, minutes)
+
+					// 模拟数值波动
+					let value = Int.random(in: 60...140)
+					let status = value > 120 ? "偏高" : (value < 70 ? "偏低" : "正常")
+
+					dailyItems.append(HistoryItem(timeString: timeStr, value: value, status: status))
+				}
+
+				let dayModel = HistoryDay(
+					dateString: dayOffset == 0 ? "今天 (\(formatter.string(from: date)))" : formatter.string(from: date),
+					items: dailyItems,
+					isExpanded: dayOffset == 0
+				)
+				days.append(dayModel)
+			}
+			return days
+		}.value
+
+		self.historyData = generatedDays
+		self.isLoading = false
 	}
 
 	private func setupBluetoothObservers() {
@@ -32,8 +93,6 @@ class DeviceManager: ObservableObject {
 				let targetDate = Date().addingTimeInterval(TimeInterval(secondsLeft))
 
 				if case .initializing = self.displayState {
-					// 已经在倒计时中，可能不需要频繁更新 targetDate，
-					// 除非偏差过大。这里简单处理：始终信任设备发来的最新时间。
 				}
 
 				withAnimation {

@@ -36,9 +36,7 @@ struct BleScanningSheet: View {
 							device: device,
 							viewModel: scanner,
 							onConnectAction: {
-								// 连接逻辑
 								scanner.connect(to: device) { connectedDevice, peripheral in
-									// ⚠️ 传递 peripheral
 									onConnect?(connectedDevice, peripheral)
 									dismiss()
 								}
@@ -51,13 +49,11 @@ struct BleScanningSheet: View {
 			.background(Color.exBgGrey)
 			.disabled(scanner.isGlobalLocked)
 			
-			// 取消按钮
 			Button {
 				scanner.stopScanning()
 				dismiss()
 			} label: {
 				Text("取消")
-				// ... 保持原样 ...
 					.font(.headline)
 					.frame(maxWidth: .infinity)
 					.padding()
