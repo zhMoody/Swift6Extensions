@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F539F95E2EF8E1D700E48C8F /* BLEKit in Frameworks */ = {isa = PBXBuildFile; productRef = F539F95D2EF8E1D700E48C8F /* BLEKit */; };
 		F5506F772EF84A5300CAFC5B /* BLEKit in Frameworks */ = {isa = PBXBuildFile; productRef = F5506F762EF84A5300CAFC5B /* BLEKit */; };
 /* End PBXBuildFile section */
 
@@ -41,6 +42,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F5506F772EF84A5300CAFC5B /* BLEKit in Frameworks */,
+				F539F95E2EF8E1D700E48C8F /* BLEKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +86,7 @@
 			name = Swift6Extensions;
 			packageProductDependencies = (
 				F5506F762EF84A5300CAFC5B /* BLEKit */,
+				F539F95D2EF8E1D700E48C8F /* BLEKit */,
 			);
 			productName = Swift6Extensions;
 			productReference = F539E7F22EF5175400E48C8F /* Swift6Extensions.app */;
@@ -114,7 +117,7 @@
 			mainGroup = F539E7E92EF5175400E48C8F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F5506F752EF84A5300CAFC5B /* XCLocalSwiftPackageReference "../BLEKit" */,
+				F539F95C2EF8E1D700E48C8F /* XCLocalSwiftPackageReference "../../../Code/BLEKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F539E7F32EF5175400E48C8F /* Products */;
@@ -275,7 +278,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = WYUSR3RW56;
+				DEVELOPMENT_TEAM = MA876C73RC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Swift6Extensions/Info.plist;
@@ -310,7 +313,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = WYUSR3RW56;
+				DEVELOPMENT_TEAM = MA876C73RC;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Swift6Extensions/Info.plist;
@@ -362,13 +365,17 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		F5506F752EF84A5300CAFC5B /* XCLocalSwiftPackageReference "../BLEKit" */ = {
+		F539F95C2EF8E1D700E48C8F /* XCLocalSwiftPackageReference "../../../Code/BLEKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../BLEKit;
+			relativePath = ../../../Code/BLEKit;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		F539F95D2EF8E1D700E48C8F /* BLEKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BLEKit;
+		};
 		F5506F762EF84A5300CAFC5B /* BLEKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BLEKit;
