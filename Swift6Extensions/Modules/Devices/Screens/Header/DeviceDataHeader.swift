@@ -79,7 +79,7 @@ struct Header_Connecting: View {
 			}
 			.padding(.horizontal, 20)
 			Spacer()
-			bottomInfo(deviceStatus: "连接中")
+			bottomInfo(date: Date(), lifeDays: 0, deviceStatus: "连接中")
 		}
 	}
 }
@@ -114,7 +114,7 @@ struct Header_ConnectionFailed: View {
 			}
 			.padding(.horizontal, 20)
 			Spacer()
-			bottomInfo(deviceStatus: "未连接")
+			bottomInfo(date: Date(), lifeDays: 0, deviceStatus: "未连接")
 		}
 	}
 }
@@ -155,7 +155,8 @@ struct Header_ConnectionFailed: View {
 
 struct Header_Countdown: View {
 	let sn: String
-	let targetDate: Date // 1. 接收结束时间 (保持你的逻辑纯洁性)
+	let targetDate: Date // 1. 接收结束时间
+    let lifeMinutes: Int
 	
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
@@ -190,6 +191,9 @@ struct Header_Countdown: View {
 			}
 			.font(.system(size: 11)).foregroundStyle(.gray)
 			.padding(.horizontal, 20).padding(.bottom, 16)
+            
+            // 显示剩余寿命
+            bottomInfo(date: Date(), lifeDays: lifeMinutes / 1440, deviceStatus: "已连接")
 		}
 	}
 	
@@ -237,7 +241,7 @@ struct Header_DataDisplay: View {
 				.frame(minWidth: 100, alignment: .leading)
 			}
 			.padding(.horizontal, 20).padding(.vertical, 20)
-			bottomInfo(deviceStatus: "已连接", highlightStatus: true)
+			bottomInfo(date: model.date, lifeDays: model.displayLifeDays, deviceStatus: "已连接", highlightStatus: true)
 		}
 	}
 }
@@ -253,11 +257,11 @@ fileprivate func topSN(_ sn: String) -> some View {
 	.padding(.horizontal, 20).padding(.top, 16)
 }
 
-private func bottomInfo(deviceStatus: String, highlightStatus: Bool = false) -> some View {
+private func bottomInfo(date: Date, lifeDays: Int, deviceStatus: String, highlightStatus: Bool = false) -> some View {
 	HStack {
-		Text(Date().formatted(date: .numeric, time: .shortened))
+		Text(date.formatted(date: .numeric, time: .shortened))
 		Spacer()
-		Text("剩余：10天")
+		Text("剩余：\(lifeDays)天")
 		Text("|").padding(.horizontal, 4)
 		HStack(spacing: 4) {
 			Text("设备：")

@@ -27,8 +27,8 @@ struct DeviceHeaderContainer: View {
 					manager.loadState()
 				}
 				
-			case .initializing(let targetDate):
-				Header_Countdown(sn: getCurrentSN() ?? "Unknown", targetDate: targetDate)
+			case .initializing(let targetDate, let lifeMinutes):
+				Header_Countdown(sn: getCurrentSN() ?? "Unknown", targetDate: targetDate, lifeMinutes: lifeMinutes)
 				
 			case .running(let model):
 				Header_DataDisplay(model: model)

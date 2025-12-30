@@ -11,34 +11,40 @@ import SwiftData
 
 @main
 struct Swift6ExtensionsApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    let container: ModelContainer
 
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try ModelContainer(for: UricAcidData.self)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            print("❌ [SwiftData] Container init failed: \(error)")
+            print("🧹 [SwiftData] Attempting to wipe database and recreate...")
+            
+            // 尝试删除旧数据库文件以恢复
+            let fileManager = FileManager.default
+            if let supportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                let dbUrl = supportDir.appendingPathComponent("default.store")
+                let shmUrl = supportDir.appendingPathComponent("default.store-shm")
+                let walUrl = supportDir.appendingPathComponent("default.store-wal")
+                
+                try? fileManager.removeItem(at: dbUrl)
+                try? fileManager.removeItem(at: shmUrl)
+                try? fileManager.removeItem(at: walUrl)
+            }
+            
+            do {
+                container = try ModelContainer(for: UricAcidData.self)
+                print("✅ [SwiftData] Database reset successful.")
+            } catch {
+                fatalError("💀 [SwiftData] Critical Error: Failed to create container even after wipe. \(error)")
+            }
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
-          TabView {
             DeviceMainScreen()
-              .tabItem {
-                Label("设备",systemImage: "flame.circle.fill")
-              }
-            
-            ContentView()
-              .tabItem {
-                Label("数据",systemImage: "flame.circle.fill")
-              }
-          }
-          
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(container)
     }
 }

@@ -40,10 +40,10 @@ struct MainView<Content1: View, Content2: View>: View {
 
 				Spacer()
 
-				Button {} label: {
-					Image(systemName: "message")
-						.foregroundStyle(.exBlue)
-				}
+//				Button {} label: {
+//					Image(systemName: "message")
+//						.foregroundStyle(.exBlue)
+//				}
 			}
 			.padding(.horizontal)
 

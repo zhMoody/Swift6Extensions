@@ -5,27 +5,32 @@ enum DeviceDisplayState: Equatable {
 	case disconnected       // 未连接 (无 UserDefaults 数据)
 	case connecting         // 连接中 (有数据，正在自动重连)
 	case connectionFailed   // 连接失败 (有数据，但连接断开)
-	case initializing(targetDate: Date)  // 初始化/水化 (计算出的剩余秒数)
+	case initializing(targetDate: Date, lifeMinutes: Int)  // 初始化/水化 (计算出的剩余秒数)
 	case running(DeviceDataModel) // 正常运行 (显示数值)
 }
 
 // MARK: - 2. 尿酸状态逻辑
-enum UricAcidStatus {
-	case normal, high, low, outOfRangeLow, outOfRangeHigh
+enum Gender {
+	case male, female
+}
 
-	static func from(value: Double) -> UricAcidStatus {
-		if value <= 0.5 { return .outOfRangeLow }
-		if value >= 1000.0 { return .outOfRangeHigh }
-		if value < 150 { return .low }
-		if value > 360 { return .high }
+enum UricAcidStatus {
+	case normal, high, low
+
+	static func from(value: Double, gender: Gender = .male) -> UricAcidStatus {
+		let highThreshold = (gender == .male) ? 416.0 : 368.0
+		let lowThreshold = (gender == .male) ? 208.0 : 149.0
+		
+		if value > highThreshold { return .high }
+		if value < lowThreshold { return .low }
 		return .normal
 	}
 
 	var color: Color {
 		switch self {
-		case .normal: return .exSuccess
-		case .high, .outOfRangeHigh: return .exFail
-		case .low, .outOfRangeLow: return .orange
+		case .normal: return .black
+		case .high: return .red
+		case .low: return .orange
 		}
 	}
 
@@ -34,16 +39,14 @@ enum UricAcidStatus {
 		case .normal: return "checkmark.circle.fill"
 		case .high: return "exclamationmark.triangle.fill"
 		case .low: return "sun.min.fill"
-		case .outOfRangeLow, .outOfRangeHigh: return "exclamationmark.circle.fill"
 		}
 	}
 
 	var title: String {
 		switch self {
 		case .normal: return "尿酸值正常"
-		case .high: return "高尿酸预警"
-		case .low: return "低尿酸预警"
-		case .outOfRangeLow, .outOfRangeHigh: return "超监测范围"
+		case .high: return "高尿酸"
+		case .low: return "低尿酸"
 		}
 	}
 }
@@ -53,13 +56,18 @@ struct DeviceDataModel: Equatable {
 	let serialNumber: String
 	let value: Double
 	let date: Date
-	let batteryDays: Int
+	let batteryDays: Int // This was previously named batteryDays, but it's really the raw value from device. Let's keep it or rename.
+    let lifeMinutes: Int
 
-	var status: UricAcidStatus { UricAcidStatus.from(value: value) }
+	// 默认使用男性标准，后续可从 UserProfile 注入
+	var status: UricAcidStatus { UricAcidStatus.from(value: value, gender: .male) }
 
 	var valueString: String {
-		if value <= 0.5 { return "≤ 0.5" }
 		if value >= 1000.0 { return "≥ 1000.0" }
 		return String(format: "%.1f", value)
 	}
+    
+    var displayLifeDays: Int {
+        return lifeMinutes / 1440
+    }
 }

@@ -15,15 +15,15 @@ class BleScannerViewModel: ObservableObject {
   private var peripheralMap: [UUID: DiscoveredPeripheral] = [:]
   
   var isGlobalLocked: Bool {
-    return connectionState == .connecting || connectionState == .connected
+    connectionState == .connecting || connectionState == .connected
   }
-  // MARK: - 设备名称解析工具
+
   private func parseDeviceDisplayName(rawName: String, advertisementData: [String: Any]) -> String {
     let upperName = rawName.uppercased()
-    
+
     guard upperName.hasPrefix("JL") else { return rawName }
-    
-    var typeName = ""
+
+    let typeName: String
     if upperName.contains("LA") {
       typeName = "乳酸"
     } else if upperName.contains("GM") {
@@ -33,27 +33,23 @@ class BleScannerViewModel: ObservableObject {
     } else {
       typeName = "设备"
     }
-    
-    // 4. 获取序号 (SN)
-    // 优先需求：从厂商包 (Manufacturer Data) 里面拿
+
     var serialNumber = ""
-    
+
     if let manuData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
       serialNumber = manuData.map { String(format: "%02X", $0) }.joined()
     }
-    
-    // 5. 如果厂商数据没拿到或为空，回退逻辑：从名字的 "-" 后面拿 (例如 JLUA-01)
+
     if serialNumber.isEmpty {
       let components = rawName.split(separator: "-")
-      if components.count > 1 {
-        serialNumber = String(components.last!).split(separator: "")
-          .dropFirst(12).joined()
+      if components.count > 1, let last = components.last {
+        let lastStr = String(last)
+        serialNumber = lastStr.count > 12 ? String(lastStr.dropFirst(12)) : lastStr
       } else {
         serialNumber = String(rawName.suffix(4))
       }
     }
-    
-    // 6. 组装最终名字：捷鹿 + 类型 + "-" + 序号
+
     return "捷鹿\(typeName)-\(String(serialNumber.suffix(4)))"
   }
   // MARK: - Init
@@ -110,7 +106,7 @@ class BleScannerViewModel: ObservableObject {
       }
       .store(in: &cancellables)
   }
-  // 辅助更新函数 (从原来的 updateList 改名而来，逻辑微调以适应新流程)
+
   private func updateUIList(newDevices: [ScannedDevice]) {
     for device in newDevices {
       // 如果列表里还没有这个设备，添加
@@ -143,42 +139,7 @@ class BleScannerViewModel: ObservableObject {
     isScanning = false
     bluetoothManager.stopScanning()
   }
-  
-  private func updateList(from items: [DiscoveredPeripheral]) {
-    for item in items {
-      peripheralMap[item.id] = item
-      
-      let rssiVal = item.rssi
-      var uuids: [String] = []
-      if let serviceUUIDs = item.advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-        uuids = serviceUUIDs.map { $0.uuidString }
-      }
-      
-      // 尝试获取名称
-      let devName = item.peripheral.name ?? (item.advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? "Unknown Device"
-      
-      let newDevice = ScannedDevice(
-        id: item.id,
-        name: devName,
-        rssi: rssiVal,
-        serviceUUIDs: uuids
-      )
-      
-      if !foundDevices.contains(where: { $0.id == newDevice.id }) {
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-          foundDevices.append(newDevice)
-        }
-      } else {
-        // 更新 RSSI
-        if let index = foundDevices.firstIndex(where: { $0.id == newDevice.id }) {
-          if foundDevices[index].rssi != rssiVal {
-            foundDevices[index] = newDevice
-          }
-        }
-      }
-    }
-  }
-  
+
   func connect(to device: ScannedDevice, onSuccess: @escaping (ScannedDevice, CBPeripheral?) -> Void) {
     guard let targetWrapper = peripheralMap[device.id] else {
       self.connectionState = .failed
