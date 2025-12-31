@@ -11,6 +11,9 @@ struct HealthDataPoint: Identifiable, Equatable {
 struct HealthTrendChart: View {
   var scope: TimeScope
   var data: [HealthDataPoint]
+  var customYRange: ClosedRange<Double>? // 自定义Y轴范围
+  var limitHigh: Double // 高警戒线
+  var limitLow: Double  // 低警戒线
   
   @State private var chartDomain: ClosedRange<Date>
   @State private var xAxisTicks: [Date] = []
@@ -18,12 +21,20 @@ struct HealthTrendChart: View {
   @State private var selectedDataPoint: HealthDataPoint? = nil
   
   private let yMax: Double = 1000.0
-  private let limitHigh: Double = 416.0
-  private let limitLow: Double = 208.0
   
-  init(scope: TimeScope, data: [HealthDataPoint]) {
+  init(
+    scope: TimeScope,
+    data: [HealthDataPoint],
+    customYRange: ClosedRange<Double>? = nil,
+    limitHigh: Double = 416.0,
+    limitLow: Double = 208.0
+  ) {
     self.scope = scope
     self.data = data
+    self.customYRange = customYRange
+    self.limitHigh = limitHigh
+    self.limitLow = limitLow
+    
     let win = scope.calculateWindow(currentDate: Date())
     _chartDomain = State(initialValue: win)
     _xAxisTicks = State(initialValue: scope.generateTicks(in: win))
@@ -81,19 +92,35 @@ struct HealthTrendChart: View {
         }
       }
     }
-    .chartYScale(domain: 0...yMax)
+    // 使用自定义范围或默认范围
+    .chartYScale(domain: customYRange ?? 0...yMax)
     .chartXScale(domain: chartDomain)
     .chartYAxis {
-      AxisMarks(position: .leading, values: [250, 500, 750, 1000]) { value in
-        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.gray.opacity(0.15))
-        AxisValueLabel {
-          if let v = value.as(Double.self) {
-            Text(String(format: "%.0f", v))
-              .font(.system(size: 10))
-              .foregroundStyle(.gray)
-              .monospacedDigit()
+      // 如果有自定义范围，使用自动刻度；否则使用默认的固定刻度
+      if let _ = customYRange {
+          AxisMarks(position: .leading) { value in
+            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.gray.opacity(0.15))
+            AxisValueLabel {
+              if let v = value.as(Double.self) {
+                Text(String(format: "%.0f", v))
+                  .font(.system(size: 10))
+                  .foregroundStyle(.gray)
+                  .monospacedDigit()
+              }
+            }
           }
-        }
+      } else {
+          AxisMarks(position: .leading, values: [250, 500, 750, 1000]) { value in
+            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.gray.opacity(0.15))
+            AxisValueLabel {
+              if let v = value.as(Double.self) {
+                Text(String(format: "%.0f", v))
+                  .font(.system(size: 10))
+                  .foregroundStyle(.gray)
+                  .monospacedDigit()
+              }
+            }
+          }
       }
     }
     
@@ -154,7 +181,7 @@ struct HealthTrendChart: View {
             
             let clampedX = max(halfTooltipWidth, min(geo.size.width - halfTooltipWidth, startX + 30))
             
-            TooltipView(point: selected)
+            TooltipView(point: selected, limitHigh: limitHigh, limitLow: limitLow)
               .fixedSize()
               .position(x: clampedX, y: startY - 45)
               .animation(.easeOut(duration: 0.1), value: startX)
@@ -179,6 +206,7 @@ struct HealthTrendChart: View {
     self.chartDomain = win
     self.xAxisTicks = newScope.generateTicks(in: win)
   }
+  
   private func findClosestDataPoint(to date: Date) {
     let closest = data.min { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }
     guard let newPoint = closest, newPoint != selectedDataPoint else {

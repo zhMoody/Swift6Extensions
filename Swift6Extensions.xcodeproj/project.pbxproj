@@ -282,6 +282,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Swift6Extensions/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = JL.URIC;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App 需要使用蓝牙连接尿酸检测仪以获取测量数据";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -317,6 +318,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Swift6Extensions/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = JL.URIC;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App 需要使用蓝牙连接尿酸检测仪以获取测量数据";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

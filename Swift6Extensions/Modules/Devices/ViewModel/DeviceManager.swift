@@ -4,19 +4,30 @@ import CoreBluetooth
 import BLEKit
 import SwiftData
 
-struct HistoryItem: Identifiable {
-	let id = UUID()
+// 内部传输对象，避免后台线程直接访问 SwiftData
+private struct HistoryDataInput: Sendable {
+    let timestamp: Date
+    let value: Double
+    let status: String
+}
+
+struct HistoryItem: Identifiable, Equatable {
+    let id: String // 使用 "时间戳_值" 作为稳定ID，提升 List 渲染性能
 	let timeString: String // 预先格式化好时间，避免滚动时重复计算
 	let value: String      // 改为 String，显示原始小数位
 	let status: String     // 正常/偏高/偏低
 }
 
 // 每一天的数据组 (Day Group)
-struct HistoryDay: Identifiable {
+struct HistoryDay: Identifiable, Equatable {
 	let id = UUID()
 	let dateString: String // 显示如 "2025-12-21"
 	var items: [HistoryItem]
 	var isExpanded: Bool = false // 控制折叠状态
+    
+    static func == (lhs: HistoryDay, rhs: HistoryDay) -> Bool {
+        return lhs.id == rhs.id && lhs.items == rhs.items && lhs.isExpanded == rhs.isExpanded
+    }
 }
 
 @MainActor
@@ -42,59 +53,90 @@ class DeviceManager: ObservableObject {
 		}
 	}
 	
-	// 处理历史数据 (接收 @Query 结果)
-	func processHistoryData(_ rawData: [UricAcidData]) {
-		self.isLoading = true
-		
-		Task.detached(priority: .userInitiated) {
-			let calendar = Calendar.current
-			let dayFormatter = DateFormatter()
-			dayFormatter.dateFormat = "yyyy-MM-dd"
-			
-			let timeFormatter = DateFormatter()
-			timeFormatter.dateFormat = "HH:mm"
-			
-			// 按天分组
-			let groupedDict = Dictionary(grouping: rawData) { item in
-				dayFormatter.string(from: item.timestamp)
-			}
-			
-			// 对日期键进行降序排序
-			let sortedKeys = groupedDict.keys.sorted(by: >)
-			
-			var resultDays: [HistoryDay] = []
-			
-			for dateKey in sortedKeys {
-				guard let itemsInDay = groupedDict[dateKey] else { continue }
-				
-				// 天内的记录按时间降序
-				let sortedItems = itemsInDay.sorted { $0.timestamp > $1.timestamp }
-				
-				let historyItems = sortedItems.map { data in
-					HistoryItem(
-						timeString: timeFormatter.string(from: data.timestamp),
-						value: String(format: "%.1f", data.value), // 关键：保留原始小数显示
-						status: data.status
-					)
-				}
-				
-				// 今天?
-				let isToday = dateKey == dayFormatter.string(from: Date())
-				let displayDate = isToday ? "今天 (\(dateKey))" : dateKey
-				
-				resultDays.append(HistoryDay(
-					dateString: displayDate,
-					items: historyItems,
-					isExpanded: isToday // 默认展开今天
-				))
-			}
-			
-			await MainActor.run { [resultDays] in
-				self.historyData = resultDays
-				self.isLoading = false
-			}
-		}
-	}
+	// 从数据库后台加载所有数据 (替代原本的 processHistoryData)
+    func loadAllData(container: ModelContainer) {
+        // 如果正在加载中，避免重复触发 (简单防抖)
+        // 注意：这里先把 isLoading 设为 true，可能会导致 UI 显示 loading，视需求而定
+        // self.isLoading = true 
+        
+        Task.detached(priority: .userInitiated) {
+            // 1. 在后台线程创建独立的 ModelContext
+            let context = ModelContext(container)
+            
+            // 2. 构造查询描述符
+            let descriptor = FetchDescriptor<UricAcidData>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            
+            do {
+                // 3. 执行查询 (IO 操作，不会卡主线程)
+                let rawData = try context.fetch(descriptor)
+                
+                // 4. 立即转换为 DTO，脱离 SwiftData 管理环境
+                let inputData = rawData.map {
+                    HistoryDataInput(timestamp: $0.timestamp, value: $0.value, status: $0.status)
+                }
+                
+                // 5. 执行原本的分组和排序逻辑
+                let calendar = Calendar.current
+                let dayFormatter = DateFormatter()
+                dayFormatter.dateFormat = "yyyy-MM-dd"
+                
+                let timeFormatter = DateFormatter()
+                timeFormatter.dateFormat = "HH:mm"
+                
+                // 按天分组
+                let groupedDict = Dictionary(grouping: inputData) { item in
+                    dayFormatter.string(from: item.timestamp)
+                }
+                
+                // 对日期键进行降序排序
+                let sortedKeys = groupedDict.keys.sorted(by: >)
+                
+                var resultDays: [HistoryDay] = []
+                
+                for dateKey in sortedKeys {
+                    guard let itemsInDay = groupedDict[dateKey] else { continue }
+                    
+                    // 天内的记录按时间降序
+                    let sortedItems = itemsInDay.sorted { $0.timestamp > $1.timestamp }
+                    
+                    let historyItems = sortedItems.map { data in
+                        // 使用组合键生成稳定 ID
+                        let uniqueID = "\(data.timestamp.timeIntervalSince1970)_\(data.value)"
+                        return HistoryItem(
+                            id: uniqueID,
+                            timeString: timeFormatter.string(from: data.timestamp),
+                            value: String(format: "%.1f", data.value),
+                            status: data.status
+                        )
+                    }
+                    
+                    // 今天?
+                    let isToday = dateKey == dayFormatter.string(from: Date())
+                    let displayDate = isToday ? "今天 (\(dateKey))" : dateKey
+                    
+                    resultDays.append(HistoryDay(
+                        dateString: displayDate,
+                        items: historyItems,
+                        isExpanded: isToday // 默认展开今天
+                    ))
+                }
+                
+                // 6. 回到主线程更新 UI
+                await MainActor.run {
+                    if self.historyData != resultDays {
+                        self.historyData = resultDays
+                    }
+                    self.isLoading = false
+                }
+                
+            } catch {
+                print("❌ [DeviceManager] 后台加载数据失败: \(error)")
+                await MainActor.run {
+                    self.isLoading = false
+                }
+            }
+        }
+    }
 
 	private func setupBluetoothObservers() {
 		BluetoothManager.shared.connectionStatusPublisher

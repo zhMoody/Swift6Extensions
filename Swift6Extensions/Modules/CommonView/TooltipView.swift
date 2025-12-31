@@ -9,6 +9,8 @@ import SwiftUI
 
 struct TooltipView: View {
     let point: HealthDataPoint
+    let limitHigh: Double
+    let limitLow: Double
     
     // 用于格式化 Tooltip 里的时间 (例如: 09:05)
     private var tooltipTimeFormatter: DateFormatter {
@@ -17,12 +19,22 @@ struct TooltipView: View {
         return formatter
     }
     
+    private var valueColor: Color {
+        if point.value > limitHigh {
+            return .red
+        } else if point.value < limitLow {
+            return .orange
+        } else {
+            return .black
+        }
+    }
+    
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 4) {
             // 大数值
             Text(String(format: "%.1f", point.value))
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color.black)
+                .foregroundStyle(valueColor)
             
             // 单位和时间
             VStack(alignment: .leading, spacing: 2) {

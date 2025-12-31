@@ -3,16 +3,23 @@ import CoreBluetooth
 import SwiftData
 import Combine
 
+// 内部传输对象
+private struct ChartInputData: Sendable {
+    let date: Date
+    let value: Double
+}
+
 struct DeviceMainScreen: View {
   @Environment(\.modelContext) private var modelContext
-  @Query(sort: [SortDescriptor(\UricAcidData.timestamp, order: .reverse)]) private var savedRecords: [UricAcidData]
+  // 移除全量 @Query，避免主线程卡顿
+  // @Query ... savedRecords
   
   @StateObject private var deviceManager = DeviceManager()
   
   @State private var selectedIndex = 0
   @State private var chartData: [HealthDataPoint] = []
   @State private var showScanBleList = false
-  @State private var targetMaxSN: Int = 0 // 同步目标 SN
+  @State private var targetMaxSN: Int = 0 
   
   var currentScope: TimeScope {
     let scopes = TimeScope.allCases
@@ -44,17 +51,15 @@ struct DeviceMainScreen: View {
             )
             
             VStack {
-              HealthTrendChart(scope: currentScope, data: chartData)
+              HealthTrendChart(scope: currentScope, data: chartData, customYRange: 0...6, limitHigh: 1.9, limitLow: 1.4)
             }
             .frame(height: 280)
             .padding()
             .background(RoundedRectangle(cornerRadius: 16).fill(Color.white))
             
             Button {
-              // 1. 断开连接 & 清除缓存
               deviceManager.disconnect(isUserAction: true)
               
-              // 2. 清除 SwiftData 数据库
               do {
                 try modelContext.delete(model: UricAcidData.self)
                 print("🗑️ 数据库已清空")
@@ -62,13 +67,11 @@ struct DeviceMainScreen: View {
                 print("❌ 数据库清空失败: \(error)")
               }
               
-              // 3. 重置 UI 状态
               withAnimation {
                 chartData = []
                 targetMaxSN = 0
               }
               
-              // 4. 清除 Manager 内部状态
               deviceManager.clearMemoryState()
               
             } label: {
@@ -82,38 +85,23 @@ struct DeviceMainScreen: View {
           .padding(.horizontal)
         }
         .onAppear {
+          // 视图出现时，触发全量后台加载
           refreshUI()
         }
         .onChange(of: selectedIndex) { _, _ in
-          updateChartFromMemory()
+           // 切换时间范围，重新从后台拉取图表数据
+           updateChartFromBackground()
         }
-        // 核心：监听数据库变化，自动刷新 UI
-        .onChange(of: savedRecords) { _, _ in
-          refreshUI()
-        }
-        // 监听蓝牙数据并保存
+        // 蓝牙实时数据 -> 插入 -> 刷新
         .onReceive(BluetoothManager.shared.valuePublisher) { (value, snStr, dataSN, timestamp, lifeMinutes) in
-          // 检查是否重复以避免冗余
-          let exists = savedRecords.contains(where: { $0.sn == dataSN })
-          if !exists {
-            let newData = UricAcidData(
-              value: value,
-              timestamp: timestamp, // 使用设备计算的精确时间
-              serialNumber: snStr,
-              sn: dataSN,
-              lifeMinutes: lifeMinutes
-            )
-            modelContext.insert(newData)
-            try? modelContext.save()
-          }
+           insertData(value: value, snStr: snStr, dataSN: dataSN, timestamp: timestamp, lifeMinutes: lifeMinutes)
         }
-        // 监听握手完成：决定是同步历史还是开启实时
+        // 握手完成 -> 同步逻辑 (保持不变，除了一处)
         .onReceive(BluetoothManager.shared.handshakeFinishedPublisher) { (maxSN, deviceStartTime, lifeMinutes) in
           print("🤝 握手完成: DeviceMaxSN=\(maxSN), Life=\(lifeMinutes)min")
           self.targetMaxSN = maxSN
           
-          
-          // 🔥 关键修复：直接查库获取最新 SN，不要用 savedRecords（可能有延迟）
+          // 🔥 关键：使用 FetchDescriptor 手动查询最新 SN，不依赖 @Query
           var localMaxSN = 0
           var descriptor = FetchDescriptor<UricAcidData>(sortBy: [SortDescriptor(\.sn, order: .reverse)])
           descriptor.fetchLimit = 1
@@ -124,35 +112,35 @@ struct DeviceMainScreen: View {
           
           if localMaxSN < maxSN {
             let remaining = maxSN - localMaxSN
-            // 每次最多拉20条，或者拉取剩余的所有条数
             let count = min(20, remaining)
-            
-            print("📥 需要同步历史: Local=\(localMaxSN) -> Target=\(maxSN) (剩余: \(remaining), 本次拉取: \(count))")
+            print("📥 需要同步历史: Local=\(localMaxSN) -> Target=\(maxSN)")
             BluetoothManager.shared.send05Command(startSN: localMaxSN + 1, count: count)
           } else {
-            print("✅ 数据已完全同步，开启实时监控")
+            print("✅ 数据已完全同步")
             BluetoothManager.shared.send06Command(isEnabled: true)
           }
         }
-        // 监听历史数据包
+        // 历史数据包 -> 插入 -> 刷新
         .onReceive(BluetoothManager.shared.historyPublisher) { items in
           print("📦 [Rx] 收到历史数据包: \(items.count) 条")
           
-          // 1. 保存数据 (如果有)
           if !items.isEmpty {
             for item in items {
-              let newData = UricAcidData(
-                value: item.value,
-                timestamp: item.timestamp,
-                serialNumber: "HISTORY",
-                sn: item.sn
-              )
-              modelContext.insert(newData)
+               let newData = UricAcidData(
+                 value: item.value,
+                 timestamp: item.timestamp,
+                 serialNumber: "HISTORY NOW",
+                 sn: item.sn
+               )
+               modelContext.insert(newData)
             }
             try? modelContext.save()
+            
+            // 插入后刷新 UI
+            refreshUI()
           }
           
-          // 2. 重新查询本地最新的 SN
+           // 重新查询本地最新的 SN
           var localMaxSN = 0
           var descriptor = FetchDescriptor<UricAcidData>(sortBy: [SortDescriptor(\.sn, order: .reverse)])
           descriptor.fetchLimit = 1
@@ -161,24 +149,15 @@ struct DeviceMainScreen: View {
             localMaxSN = lastItem.sn
           }
           
-          print("📊 同步进度: Local=\(localMaxSN) / Target=\(self.targetMaxSN)")
-          
-          // 3. 决策：继续拉取还是结束？
-          // 如果收到的包为空，通常意味着设备也没数据了，直接结束比较安全
-          // 或者如果本地已经完全追平了目标，也结束
           if items.isEmpty || localMaxSN >= self.targetMaxSN {
-            print("🎉 历史同步完成，再次发送 0x04 校验...")
             BluetoothManager.shared.queryDeviceStatus()
           } else {
             let nextStart = localMaxSN + 1
             let remaining = self.targetMaxSN - nextStart + 1
-            
             if remaining > 0 {
               let count = min(20, remaining)
-              print("🔄 继续拉取下一批: Start=\(nextStart), Count=\(count)...")
               BluetoothManager.shared.send05Command(startSN: nextStart, count: count)
             } else {
-              // 理论上不会进这里，但作为防御
               BluetoothManager.shared.queryDeviceStatus()
             }
           }
@@ -187,16 +166,12 @@ struct DeviceMainScreen: View {
       pageTwo: {
         VStack(spacing: 0) {
           HStack {
-            Text("历史数据归档")
-              .font(.headline)
+            Text("历史数据归档").font(.headline)
             Spacer()
             if deviceManager.isLoading {
-              ProgressView()
-                .scaleEffect(0.8)
+              ProgressView().scaleEffect(0.8)
             } else {
-              Text("共 \(deviceManager.historyData.count) 天")
-                .font(.caption)
-                .foregroundStyle(.gray)
+              Text("共 \(deviceManager.historyData.count) 天").font(.caption).foregroundStyle(.gray)
             }
           }
           .padding()
@@ -213,15 +188,11 @@ struct DeviceMainScreen: View {
                   }
                 } label: {
                   HStack {
-                    Text(day.dateString)
-                      .font(.system(.subheadline, design: .monospaced))
-                      .fontWeight(.bold)
-                      .foregroundStyle(Color("exBlue")) // 明确使用资源文件中的颜色
+                    Text(day.dateString).font(.system(.subheadline, design: .monospaced)).fontWeight(.bold).foregroundStyle(.exBlue)
                     Spacer()
-                    Text("\(day.items.count) 条记录")
-                      .font(.caption2)
-                      .foregroundStyle(.gray)
-                  }                  .padding(.vertical, 4)
+                    Text("\(day.items.count) 条记录").font(.caption2).foregroundStyle(.gray)
+                  }
+                  .padding(.vertical, 4)
                 }
               }
             }
@@ -243,38 +214,103 @@ struct DeviceMainScreen: View {
     }
   }
   
+  // 辅助：插入数据并刷新
+  private func insertData(value: Double, snStr: String, dataSN: Int, timestamp: Date, lifeMinutes: Int) {
+     // 先查重 (这里用 fetch)
+     var descriptor = FetchDescriptor<UricAcidData>(predicate: #Predicate { $0.sn == dataSN })
+     descriptor.fetchLimit = 1
+     
+     if let _ = try? modelContext.fetch(descriptor).first {
+         // 已存在
+     } else {
+         let newData = UricAcidData(
+            value: value,
+            timestamp: timestamp,
+            serialNumber: snStr,
+            sn: dataSN,
+            lifeMinutes: lifeMinutes
+        )
+        modelContext.insert(newData)
+        try? modelContext.save()
+        
+        // 插入后刷新
+        refreshUI()
+     }
+  }
+
   // 统一刷新入口
   private func refreshUI() {
-    // 1. 更新历史列表
-    deviceManager.processHistoryData(savedRecords)
-    // 2. 更新图表
-    updateChartFromMemory()
+    let container = modelContext.container
     
-    // 3. 🔥 关键：用最新数据刷新 Header 显示
-    if let latest = savedRecords.first {
-      deviceManager.updateDisplayValue(
-        latest.value,
-        sn: latest.serialNumber,
-        date: latest.timestamp,
-        lifeMinutes: latest.lifeMinutes
-      )
-    }
+    // 1. 触发列表后台加载
+    deviceManager.loadAllData(container: container)
+    
+    // 2. 触发图表后台加载
+    updateChartFromBackground()
+    
+    // 3. 更新 Header (在主线程简单查询一条最新数据即可)
+    updateHeader()
   }
   
-  private func updateChartFromMemory() {
-    let now = Date()
-    let secondsBack = currentScope.duration
-    let startDate = now.addingTimeInterval(-secondsBack)
+  private func updateHeader() {
+      var descriptor = FetchDescriptor<UricAcidData>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+      descriptor.fetchLimit = 1
+      if let latest = try? modelContext.fetch(descriptor).first {
+          deviceManager.updateDisplayValue(
+            latest.value,
+            sn: latest.serialNumber,
+            date: latest.timestamp,
+            lifeMinutes: latest.lifeMinutes
+          )
+      }
+  }
+  
+  private func updateChartFromBackground() {
+    let container = modelContext.container
+    let scopeDuration = currentScope.duration
     
-    // 在内存中过滤数据，比每次去查库更高效（因为 savedRecords 已经是我们需要的数据集）
-    let filtered = savedRecords.filter { $0.timestamp >= startDate }
-    let points = filtered.map { HealthDataPoint(date: $0.timestamp, value: $0.value) }
-    
-    // 排序确保图表绘制正确
-    let sortedPoints = points.sorted { $0.date < $1.date }
-    
-    withAnimation(.easeInOut) {
-      self.chartData = sortedPoints
+    Task.detached(priority: .userInitiated) {
+      let context = ModelContext(container)
+      let now = Date()
+      let startDate = now.addingTimeInterval(-scopeDuration)
+      
+      let descriptor = FetchDescriptor<UricAcidData>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+      
+      if let rawData = try? context.fetch(descriptor) {
+         // 1. 过滤
+         let filtered = rawData.filter { $0.timestamp >= startDate }
+         
+         // 2. 转换并排序
+         let sortedPoints = filtered.map { 
+             HealthDataPoint(date: $0.timestamp, value: $0.value) 
+         }.sorted { $0.date < $1.date }
+         
+         // 3. 降采样
+         // 屏幕宽度有限，渲染过多点位会导致严重卡顿。限制在 300 个点左右。
+         let targetPointCount = 300
+         var finalPoints: [HealthDataPoint] = []
+
+         if sortedPoints.count > targetPointCount {
+             let step = Double(sortedPoints.count) / Double(targetPointCount)
+             for i in 0..<targetPointCount {
+                 let index = Int(Double(i) * step)
+                 if index < sortedPoints.count {
+                     finalPoints.append(sortedPoints[index])
+                 }
+             }
+             // 确保最后一个点总是包含在内，保证图表右侧闭合
+             if let last = sortedPoints.last, finalPoints.last != last {
+                 finalPoints.append(last)
+             }
+         } else {
+             finalPoints = sortedPoints
+         }
+         
+         // 4. 回到主线程更新
+         await MainActor.run {
+            self.chartData = finalPoints
+         }
+      }
     }
   }
 }
